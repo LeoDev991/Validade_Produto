@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<link rel="stylesheet" href="style.css">
+<title>Etiqueta de Validade</title>
+</head>
+
+<body>
+
+<!-- FORMULÁRIO -->
+<div class="formulario">
+    <h3>Etiqueta de Validade</h3>
+    <input type="text" id="produto" placeholder="Nome do produto">
+    <input type="number" id="dias" placeholder="Dias de validade">
+    <button onclick="gerarEtiqueta()">Gerar Etiqueta</button>
+    <button onclick="window.print()">Imprimir</button>
+</div>
+
+<!-- ETIQUETA -->
+<div class="etiqueta" id="etiqueta">
+    <div class="titulo">PRODUTO</div>
+    <div class="linha"></div>
+
+    <div class="produto" id="nomeProduto">---</div>
+
+    <div class="linha"></div>
+
+    <div class="secao">FABRICAÇÃO</div>
+    <div class="data" id="fabricacao">--/--/----</div>
+
+    <div class="secao">VALIDADE</div>
+    <div class="data" id="validade">--/--/----</div>
+
+    <div class="linha"></div>
+</div>
+
+<script src="script/script.js"></script>
+
+
+</body>
+</html>
