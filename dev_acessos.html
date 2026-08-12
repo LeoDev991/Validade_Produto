@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Controle de Acesso - Desenvolvedor</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: #111827;
+      color: #f3f4f6;
+      padding: 24px;
+    }
+    .container {
+      max-width: 1100px;
+      margin: 0 auto;
+      background: #1f2937;
+      border-radius: 12px;
+      padding: 24px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.25);
+    }
+    h1 {
+      margin-top: 0;
+      font-size: 30px;
+    }
+    .painel {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 16px;
+      margin: 20px 0 30px;
+    }
+    .card {
+      background: #0f172a;
+      border: 1px solid #374151;
+      border-radius: 10px;
+      padding: 16px;
+    }
+    .card strong {
+      display: block;
+      font-size: 12px;
+      color: #9ca3af;
+      margin-bottom: 8px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+    .card span {
+      font-size: 24px;
+      font-weight: bold;
+    }
+    .acoes {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-bottom: 24px;
+    }
+    button {
+      border: none;
+      border-radius: 8px;
+      padding: 10px 16px;
+      font-weight: bold;
+      cursor: pointer;
+      transition: 0.2s ease;
+    }
+    button:hover { opacity: 0.9; }
+    .btn-primary { background: #3b82f6; color: white; }
+    .btn-danger { background: #ef4444; color: white; }
+    .btn-success { background: #22c55e; color: white; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      overflow: hidden;
+      border-radius: 10px;
+      background: #0f172a;
+    }
+    th, td {
+      padding: 12px 14px;
+      border-bottom: 1px solid #374151;
+      text-align: left;
+      vertical-align: top;
+    }
+    th {
+      background: #111827;
+      color: #cbd5e1;
+    }
+    td {
+      color: #e5e7eb;
+      font-size: 13px;
+      word-break: break-word;
+    }
+    .status {
+      display: inline-block;
+      padding: 5px 8px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: bold;
+    }
+    .ok { background: rgba(34, 197, 94, 0.15); color: #86efac; }
+    .bloq { background: rgba(239, 68, 68, 0.15); color: #fca5a5; }
+    .muted {
+      color: #9ca3af;
+      font-size: 12px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Controle de Acesso</h1>
+    <p class="muted">Painel de desenvolvedor para visualizar acessos e bloquear ou liberar dispositivos.</p>
+
+    <div class="painel">
+      <div class="card">
+        <strong>Total registado</strong>
+        <span id="totalAcessos">0</span>
+      </div>
+      <div class="card">
+        <strong>Dispositivos bloqueados</strong>
+        <span id="totalBloqueados">0</span>
+      </div>
+      <div class="card">
+        <strong>Último acesso</strong>
+        <span id="ultimoAcesso">-</span>
+      </div>
+    </div>
+
+    <div class="acoes">
+      <button class="btn-primary" onclick="atualizarLista()">Atualizar</button>
+      <button class="btn-success" onclick="liberarTodos()">Liberar todos</button>
+      <button class="btn-danger" onclick="bloquearTodos()">Bloquear todos</button>
+    </div>
+
+    <table>
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Data / Hora</th>
+          <th>Origem</th>
+          <th>URL</th>
+          <th>Navegador</th>
+          <th>Status</th>
+          <th>Ações</th>
+        </tr>
+      </thead>
+      <tbody id="tabelaAcessos"></tbody>
+    </table>
+  </div>
+
+  <script>
+    const LOG_KEY = 'validade_access_log';
+    const BLOCKED_KEY = 'validade_access_bloqueados';
+
+    function getJson(key, fallback) {
+      try {
+        const valor = localStorage.getItem(key);
+        if (!valor) return fallback;
+        const parsed = JSON.parse(valor);
+        return Array.isArray(parsed) ? parsed : fallback;
+      } catch (error) {
+        return fallback;
+      }
+    }
+
+    function salvarJson(key, valor) {
+      localStorage.setItem(key, JSON.stringify(valor));
+    }
+
+    function formatarData(dataString) {
+      if (!dataString) return '-';
+      const data = new Date(dataString);
+      return isNaN(data.getTime()) ? dataString : data.toLocaleString('pt-BR');
+    }
+
+    function getBloqueados() {
+      return getJson(BLOCKED_KEY, []);
+    }
+
+    function atualizarResumo(acessos) {
+      const bloqueados = getBloqueados();
+      const total = acessos.length;
+      const ultimo = acessos[0] ? formatarData(acessos[0].data) : '-';
+
+      document.getElementById('totalAcessos').textContent = total;
+      document.getElementById('totalBloqueados').textContent = bloqueados.length;
+      document.getElementById('ultimoAcesso').textContent = ultimo;
+    }
+
+    function renderTabela() {
+      const acessos = getJson(LOG_KEY, []);
+      const bloqueados = getBloqueados();
+      const tbody = document.getElementById('tabelaAcessos');
+
+      if (!acessos.length) {
+        tbody.innerHTML = '<tr><td colspan="7" class="muted">Nenhum acesso registrado até o momento.</td></tr>';
+        atualizarResumo(acessos);
+        return;
+      }
+
+      tbody.innerHTML = acessos.map((item) => {
+        const bloqueado = bloqueados.includes(item.id);
+        return `
+          <tr>
+            <td>${item.id || '-'}</td>
+            <td>${formatarData(item.data)}</td>
+            <td>${item.origem || '-'}</td>
+            <td>${item.url || '-'}</td>
+            <td>${item.navegador ? item.navegador.slice(0, 120) : '-'}</td>
+            <td>
+              <span class="status ${bloqueado ? 'bloq' : 'ok'}">
+                ${bloqueado ? 'Bloqueado' : 'Liberado'}
+              </span>
+            </td>
+            <td>
+              ${bloqueado
+                ? '<button class="btn-success" onclick="liberarAcesso(\'' + item.id + '\')">Liberar</button>'
+                : '<button class="btn-danger" onclick="bloquearAcesso(\'' + item.id + '\')">Bloquear</button>'}
+            </td>
+          </tr>
+        `;
+      }).join('');
+
+      atualizarResumo(acessos);
+    }
+
+    function bloquearAcesso(id) {
+      const bloqueados = getBloqueados();
+      if (!bloqueados.includes(id)) {
+        bloqueados.push(id);
+        salvarJson(BLOCKED_KEY, bloqueados);
+      }
+      atualizarLista();
+    }
+
+    function liberarAcesso(id) {
+      const bloqueados = getBloqueados().filter(item => item !== id);
+      salvarJson(BLOCKED_KEY, bloqueados);
+      atualizarLista();
+    }
+
+    function bloquearTodos() {
+      const acessos = getJson(LOG_KEY, []);
+      const ids = acessos.map(item => item.id).filter(Boolean);
+      salvarJson(BLOCKED_KEY, [...new Set(ids)]);
+      atualizarLista();
+    }
+
+    function liberarTodos() {
+      salvarJson(BLOCKED_KEY, []);
+      atualizarLista();
+    }
+
+    function atualizarLista() {
+      renderTabela();
+    }
+
+    atualizarLista();
+  </script>
+</body>
+</html>
