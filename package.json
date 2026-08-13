@@ -1,0 +1,17 @@
+{
+  "name": "validade-produto",
+  "version": "1.0.0",
+  "description": "Sistema de etiqueta de validade com consentimento e painel de acesso",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "dotenv": "^16.4.5",
+    "express": "^4.21.2",
+    "express-session": "^1.18.1",
+    "sqlite3": "^5.1.7"
+  }
+}

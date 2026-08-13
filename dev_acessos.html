@@ -21,9 +21,23 @@
       padding: 24px;
       box-shadow: 0 10px 30px rgba(0,0,0,0.25);
     }
-    h1 {
-      margin-top: 0;
-      font-size: 30px;
+    h1 { margin-top: 0; font-size: 30px; }
+    .auth-box {
+      max-width: 420px;
+      margin: 0 auto 24px;
+      background: #0f172a;
+      border: 1px solid #374151;
+      border-radius: 12px;
+      padding: 20px;
+    }
+    .auth-box input {
+      width: 100%;
+      margin-bottom: 12px;
+      padding: 12px;
+      border-radius: 8px;
+      border: 1px solid #475569;
+      background: #111827;
+      color: #f3f4f6;
     }
     .painel {
       display: grid;
@@ -89,80 +103,77 @@
       font-size: 13px;
       word-break: break-word;
     }
-    .status {
-      display: inline-block;
-      padding: 5px 8px;
-      border-radius: 999px;
-      font-size: 12px;
-      font-weight: bold;
-    }
-    .ok { background: rgba(34, 197, 94, 0.15); color: #86efac; }
-    .bloq { background: rgba(239, 68, 68, 0.15); color: #fca5a5; }
-    .muted {
-      color: #9ca3af;
-      font-size: 12px;
-    }
+    .muted { color: #9ca3af; font-size: 12px; }
+    .hidden { display: none !important; }
   </style>
 </head>
 <body>
   <div class="container">
-    <h1>Controle de Acesso</h1>
-    <p class="muted">Painel de desenvolvedor para visualizar acessos e bloquear ou liberar dispositivos.</p>
-
-    <div class="painel">
-      <div class="card">
-        <strong>Total registado</strong>
-        <span id="totalAcessos">0</span>
-      </div>
-      <div class="card">
-        <strong>Dispositivos bloqueados</strong>
-        <span id="totalBloqueados">0</span>
-      </div>
-      <div class="card">
-        <strong>Último acesso</strong>
-        <span id="ultimoAcesso">-</span>
-      </div>
+    <div id="loginBox" class="auth-box">
+      <h2>Login do desenvolvedor</h2>
+      <input id="githubUser" type="text" placeholder="Usuário GitHub" />
+      <input id="password" type="password" placeholder="Senha" />
+      <button class="btn-success" id="btnLogin">Entrar</button>
+      <p id="loginStatus" class="muted"></p>
     </div>
 
-    <div class="acoes">
-      <button class="btn-primary" onclick="atualizarLista()">Atualizar</button>
-      <button class="btn-success" onclick="liberarTodos()">Liberar todos</button>
-      <button class="btn-danger" onclick="bloquearTodos()">Bloquear todos</button>
-    </div>
+    <div id="dashboard" class="hidden">
+      <h1>Controle de Acesso</h1>
+      <p class="muted">Acessos salvos em banco de dados do servidor.</p>
 
-    <table>
-      <thead>
-        <tr>
-          <th>ID</th>
-          <th>Data / Hora</th>
-          <th>Origem</th>
-          <th>URL</th>
-          <th>Navegador</th>
-          <th>Status</th>
-          <th>Ações</th>
-        </tr>
-      </thead>
-      <tbody id="tabelaAcessos"></tbody>
-    </table>
+      <div class="painel">
+        <div class="card">
+          <strong>Total registado</strong>
+          <span id="totalAcessos">0</span>
+        </div>
+        <div class="card">
+          <strong>Último acesso</strong>
+          <span id="ultimoAcesso">-</span>
+        </div>
+      </div>
+
+      <div class="acoes">
+        <button class="btn-primary" id="btnAtualizar">Atualizar</button>
+        <button class="btn-danger" id="btnLimpar">Limpar registros</button>
+        <button class="btn-primary" id="btnResetConsent">Resetar consentimento</button>
+        <button class="btn-danger" id="btnLogout">Sair</button>
+      </div>
+
+      <table>
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Data / Hora</th>
+            <th>Origem</th>
+            <th>URL</th>
+            <th>Navegador</th>
+            <th>Dispositivo</th>
+          </tr>
+        </thead>
+        <tbody id="tabelaAcessos"></tbody>
+      </table>
+    </div>
   </div>
 
   <script>
-    const LOG_KEY = 'validade_access_log';
-    const BLOCKED_KEY = 'validade_access_bloqueados';
+    const loginBox = document.getElementById('loginBox');
+    const dashboard = document.getElementById('dashboard');
+    const loginStatus = document.getElementById('loginStatus');
+    const tbody = document.getElementById('tabelaAcessos');
 
-    function getJson(key, fallback) {
-      try {
-        const valor = localStorage.getItem(key);
-        if (!valor) return fallback;
-        const parsed = JSON.parse(valor);
-        return Array.isArray(parsed) ? parsed : fallback;
-      } catch (error) {
-        return fallback;
+    async function requestJson(url, options = {}) {
+      const response = await fetch(url, {
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        ...options
+      });
+
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(data.error || 'Erro ao processar a requisição.');
       }
-    }
 
-    function salvarJson(key, valor) {
-      localStorage.setItem(key, JSON.stringify(valor));
+      return data;
     }
 
     function formatarData(dataString) {
@@ -171,89 +182,120 @@
       return isNaN(data.getTime()) ? dataString : data.toLocaleString('pt-BR');
     }
 
-    function getBloqueados() {
-      return getJson(BLOCKED_KEY, []);
-    }
-
     function atualizarResumo(acessos) {
-      const bloqueados = getBloqueados();
-      const total = acessos.length;
-      const ultimo = acessos[0] ? formatarData(acessos[0].data) : '-';
-
-      document.getElementById('totalAcessos').textContent = total;
-      document.getElementById('totalBloqueados').textContent = bloqueados.length;
-      document.getElementById('ultimoAcesso').textContent = ultimo;
+      document.getElementById('totalAcessos').textContent = acessos.length;
+      document.getElementById('ultimoAcesso').textContent = acessos[0] ? formatarData(acessos[0].created_at) : '-';
     }
 
-    function renderTabela() {
-      const acessos = getJson(LOG_KEY, []);
-      const bloqueados = getBloqueados();
-      const tbody = document.getElementById('tabelaAcessos');
-
+    function renderTabela(acessos) {
       if (!acessos.length) {
-        tbody.innerHTML = '<tr><td colspan="7" class="muted">Nenhum acesso registrado até o momento.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="6" class="muted">Nenhum acesso registrado até o momento.</td></tr>';
         atualizarResumo(acessos);
         return;
       }
 
-      tbody.innerHTML = acessos.map((item) => {
-        const bloqueado = bloqueados.includes(item.id);
-        return `
-          <tr>
-            <td>${item.id || '-'}</td>
-            <td>${formatarData(item.data)}</td>
-            <td>${item.origem || '-'}</td>
-            <td>${item.url || '-'}</td>
-            <td>${item.navegador ? item.navegador.slice(0, 120) : '-'}</td>
-            <td>
-              <span class="status ${bloqueado ? 'bloq' : 'ok'}">
-                ${bloqueado ? 'Bloqueado' : 'Liberado'}
-              </span>
-            </td>
-            <td>
-              ${bloqueado
-                ? '<button class="btn-success" onclick="liberarAcesso(\'' + item.id + '\')">Liberar</button>'
-                : '<button class="btn-danger" onclick="bloquearAcesso(\'' + item.id + '\')">Bloquear</button>'}
-            </td>
-          </tr>
-        `;
-      }).join('');
+      tbody.innerHTML = acessos.map((item) => `
+        <tr>
+          <td>${item.device_id || '-'}</td>
+          <td>${formatarData(item.created_at)}</td>
+          <td>${item.referrer || '-'}</td>
+          <td>${item.pathname || '-'}</td>
+          <td>${item.browser ? item.browser.slice(0, 120) : '-'}</td>
+          <td>${item.platform || '-'}</td>
+        </tr>
+      `).join('');
 
       atualizarResumo(acessos);
     }
 
-    function bloquearAcesso(id) {
-      const bloqueados = getBloqueados();
-      if (!bloqueados.includes(id)) {
-        bloqueados.push(id);
-        salvarJson(BLOCKED_KEY, bloqueados);
+    async function carregarRegistros() {
+      try {
+        const registros = await requestJson('/api/access-log');
+        renderTabela(registros);
+      } catch (error) {
+        console.warn('Usando fallback local:', error);
+        const fallback = JSON.parse(localStorage.getItem('validade_access_log') || '[]');
+        renderTabela(fallback);
       }
-      atualizarLista();
     }
 
-    function liberarAcesso(id) {
-      const bloqueados = getBloqueados().filter(item => item !== id);
-      salvarJson(BLOCKED_KEY, bloqueados);
-      atualizarLista();
+    async function verificarSessao() {
+      try {
+        const sessao = await requestJson('/api/session');
+        if (sessao.authenticated) {
+          loginBox.classList.add('hidden');
+          dashboard.classList.remove('hidden');
+          await carregarRegistros();
+          return;
+        }
+      } catch (error) {
+        console.warn('Sessão não disponível:', error);
+      }
+
+      loginBox.classList.remove('hidden');
+      dashboard.classList.add('hidden');
     }
 
-    function bloquearTodos() {
-      const acessos = getJson(LOG_KEY, []);
-      const ids = acessos.map(item => item.id).filter(Boolean);
-      salvarJson(BLOCKED_KEY, [...new Set(ids)]);
-      atualizarLista();
+    async function login() {
+      const githubUser = document.getElementById('githubUser').value.trim();
+      const password = document.getElementById('password').value;
+
+      if (!githubUser || !password) {
+        loginStatus.textContent = 'Informe usuário e senha.';
+        return;
+      }
+
+      try {
+        await requestJson('/api/login', {
+          method: 'POST',
+          body: JSON.stringify({ github_user: githubUser, password })
+        });
+
+        loginStatus.textContent = '';
+        await verificarSessao();
+      } catch (error) {
+        loginStatus.textContent = error.message;
+      }
     }
 
-    function liberarTodos() {
-      salvarJson(BLOCKED_KEY, []);
-      atualizarLista();
+    async function logout() {
+      try {
+        await requestJson('/api/logout', { method: 'POST' });
+      } catch (error) {
+        console.warn('Erro ao sair:', error);
+      } finally {
+        await verificarSessao();
+      }
     }
 
-    function atualizarLista() {
-      renderTabela();
+    async function limparRegistros() {
+      try {
+        await requestJson('/api/access-log', { method: 'DELETE' });
+        await carregarRegistros();
+      } catch (error) {
+        localStorage.removeItem('validade_access_log');
+        renderTabela([]);
+      }
     }
 
-    atualizarLista();
+    function resetarConsentimento() {
+      document.cookie = 'validade_cookie_consent=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/;SameSite=Lax';
+      alert('Consentimento resetado. Abra a página principal novamente para solicitar a confirmação.');
+    }
+
+    document.getElementById('btnLogin').addEventListener('click', login);
+    document.getElementById('btnAtualizar').addEventListener('click', carregarRegistros);
+    document.getElementById('btnLimpar').addEventListener('click', limparRegistros);
+    document.getElementById('btnResetConsent').addEventListener('click', resetarConsentimento);
+    document.getElementById('btnLogout').addEventListener('click', logout);
+
+    document.getElementById('password').addEventListener('keydown', (event) => {
+      if (event.key === 'Enter') {
+        login();
+      }
+    });
+
+    verificarSessao();
   </script>
 </body>
 </html>
